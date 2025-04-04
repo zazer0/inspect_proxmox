@@ -39,6 +39,7 @@ source = "from-dhcp"
 [disk-setup]
 filesystem = "ext4"
 disk_list = ["vda"]
+lvm.maxroot = 250
 
 [first-boot]
 source = "from-iso"
@@ -134,10 +135,12 @@ virt-install --name proxmox-auto \\
     --qemu-commandline='-device virtio-net,netdev=user.0,addr=8 -netdev user,id=user.0,hostfwd=tcp::10000-:8006' \\
     --check disk_size=off
 EDITOR="sed -i '/<disk type=.*device=.cdrom/,/<\/disk>/d'" virsh edit proxmox-auto
+touch virt-inst-proxmox.complete
+chmod go+r virt-inst-proxmox.complete
 EOFVIRTINST
 
 chmod +x virt-inst-proxmox.sh
-sudo tmux new-session -d -s virt-inst-proxmox  ./virt-inst-proxmox.sh
+sudo tmux new-session -d -s virt-inst-proxmox -x 80 -y 10 "./virt-inst-proxmox.sh | tee virt-inst-proxmox.log"
 
 cat << 'EOFVEND' > vend.sh
 #!/usr/bin/env bash
@@ -186,7 +189,12 @@ echo "PROXMOX_VERIFY_TLS=0"
 EOFVEND
 chmod +x ./vend.sh
 
-run-one-until-failure bash -c 'sleep 5; sudo tmux list-windows -t virt-inst-proxmox' > /dev/null
 
-virsh list --all
-echo 'Script complete. Run ./vend.sh 1 to create a fresh clone of the Proxmox VM.'
+yes | watch --errexit --exec sudo tmux capture-pane -pt virt-inst-proxmox:0.0 || true
+
+if [ -f virt-inst-proxmox.complete ];
+then
+    echo 'Script complete. Run ./vend.sh 1 to create a fresh clone of the Proxmox VM.'
+else
+    echo 'Error building proxmox-auto. Check virt-inst-proxmox.log'
+fi

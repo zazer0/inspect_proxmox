@@ -179,28 +179,12 @@ Instead:
 Proxmox supports OVA import but not OVA export. It is possible to extract the disk images of VMs 
 from a Proxmox server in qcow2 format (instructions for this can be found online).
 
-Once you have the disk images locally, you can use the convenience script `scripts/ova/convert_ova.sh`
+Once you have the disk images locally, you can use the convenience script `src/proxmoxsandbox/scripts/ova/convert_ova.sh`
 to convert it into an OVA.
 
 ## Observing the VMs
 
 Note, if you are having problems, then setting Inspect's `sandbox_cleanup=False` will be helpful.
-
-<details>
-<summary>AISI-specific instructions </summary>
-
-To access the Proxmox UI, at the moment you need to forward the port as follows.
-
-Suppose your developer VM is called `my-dev-vm`, and assuming you copy your `.env` file onto your Mac, you can run on your Mac:
-
-`set -a; source .env; set +a`
-
-Then you can ssh as follows
-
-`ssh -L "localhost:8006:$PROXMOX_HOST:$PROXMOX_PORT" my-dev-vm`
-
-Then open the page https://locahost:8006, accept the certificate warning, and log in with the username and password from the .env file
-</details>
 
 ### Logging in
 
