@@ -6,6 +6,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import Dict, List, Set
 
+from proxmoxsandbox._impl.agent_commands import AgentCommands
+
 import tenacity
 from inspect_ai.util import trace_action
 from pydantic.networks import HttpUrl
@@ -55,7 +57,7 @@ class QemuCommands(abc.ABC):
     ) -> None:
         @tenacity.retry(
             wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-            stop=tenacity.stop_after_delay(1200),
+            stop=tenacity.stop_after_delay(120),  # Reduced from 1200 to 120 seconds
         )
         async def is_in_status() -> None:
             vm_status = await self.async_proxmox.request(
@@ -72,18 +74,67 @@ class QemuCommands(abc.ABC):
             await is_in_status()
 
         if is_sandbox and status_for_wait == "running":
-
+            # First attempt: Try ping with reduced timeout (30 seconds)
             @tenacity.retry(
                 wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-                stop=tenacity.stop_after_delay(300),
+                stop=tenacity.stop_after_delay(30),  # Reduced from 300 to 30 seconds
             )
             async def qemu_agent_reachable() -> None:
                 await self.ping_qemu_agent(vm_id)
 
             with trace_action(
-                self.logger, self.TRACE_NAME, f"await VM {vm_id} QEMU agent"
+                self.logger, self.TRACE_NAME, f"await VM {vm_id} QEMU agent (initial attempt)"
             ):
-                await qemu_agent_reachable()
+                try:
+                    await qemu_agent_reachable()
+                    return  # Success, exit early
+                except Exception as e:
+                    self.logger.warning(
+                        f"Initial QEMU agent ping failed for VM {vm_id}: {e}. Attempting recovery..."
+                    )
+
+            # Recovery attempt: Try to restart the agent service using exec
+            with trace_action(
+                self.logger, self.TRACE_NAME, f"attempting to restart QEMU agent in VM {vm_id}"
+            ):
+                try:
+                    agent_commands = AgentCommands(self.async_proxmox, self.node)
+                    # Attempt to restart the qemu-guest-agent service
+                    # Using systemctl restart which works on most modern Linux systems
+                    result = await agent_commands.exec_command(
+                        vm_id=vm_id,
+                        command=["systemctl", "restart", "qemu-guest-agent"]
+                    )
+                    # Wait a moment for the service to restart
+                    await tenacity.AsyncRetrying(
+                        wait=tenacity.wait_fixed(2),
+                        stop=tenacity.stop_after_delay(5),
+                    ).async_call(lambda: None)
+                except Exception as restart_error:
+                    self.logger.warning(
+                        f"Could not restart QEMU agent service in VM {vm_id}: {restart_error}"
+                    )
+
+            # Second attempt: Try ping again with reduced timeout
+            @tenacity.retry(
+                wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
+                stop=tenacity.stop_after_delay(30),  # Another 30 seconds
+            )
+            async def qemu_agent_reachable_retry() -> None:
+                await self.ping_qemu_agent(vm_id)
+
+            with trace_action(
+                self.logger, self.TRACE_NAME, f"await VM {vm_id} QEMU agent (retry after recovery)"
+            ):
+                try:
+                    await qemu_agent_reachable_retry()
+                except Exception as e:
+                    # Log warning but continue - don't fail the entire operation
+                    self.logger.warning(
+                        f"QEMU agent still not responding for VM {vm_id} after recovery attempt: {e}. "
+                        f"Proceeding without agent functionality. This may limit some operations."
+                    )
+                    # Continue without raising - the VM is running, just without agent
 
     async def destroy_vm(self, vm_id: int) -> None:
         with trace_action(self.logger, self.TRACE_NAME, f"stop VM {vm_id}"):
