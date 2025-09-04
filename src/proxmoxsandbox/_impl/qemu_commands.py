@@ -77,7 +77,7 @@ class QemuCommands(abc.ABC):
             # First attempt: Try ping with reduced timeout (30 seconds)
             @tenacity.retry(
                 wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-                stop=tenacity.stop_after_delay(180),  # Reduced from 300 to 30 seconds
+                stop=tenacity.stop_after_delay(30),  # Reduced from 300 to 30 seconds
             )
             async def qemu_agent_reachable() -> None:
                 await self.ping_qemu_agent(vm_id)
@@ -118,7 +118,7 @@ class QemuCommands(abc.ABC):
             # Second attempt: Try ping again with reduced timeout
             @tenacity.retry(
                 wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-                stop=tenacity.stop_after_delay(180),  # Another 30 seconds
+                stop=tenacity.stop_after_delay(600),  # XXX: here, we try for 10 mins!! (cloudinit takes 6min to run!)
             )
             async def qemu_agent_reachable_retry() -> None:
                 await self.ping_qemu_agent(vm_id)
