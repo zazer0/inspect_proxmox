@@ -242,7 +242,7 @@ class QemuCommands(abc.ABC):
                     )
 
                 new_vm_id = await self.clone_vm_and_start(
-                    vm_config, vm_id_to_clone, sdn_vnet_aliases, False
+                    vm_config, vm_id_to_clone, sdn_vnet_aliases, True
                 )
             else:
                 raise NotImplementedError(
