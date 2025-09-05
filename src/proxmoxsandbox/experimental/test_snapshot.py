@@ -72,6 +72,7 @@ If all checks pass successfully, respond with exactly: "SNAPSHOT_TEST_SUCCESS"
 if __name__ == "__main__":
     import asyncio
     from inspect_ai import eval
+    from inspect_ai.model import get_model
     
     # Configure logging to see snapshot operations
     logging.basicConfig(
@@ -93,10 +94,18 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
     
+    # Get model from environment or use default
+    try:
+        model = get_model()
+    except:
+        # Fallback to a simple model if no model configured
+        model = "openai/gpt-4o-mini"
+        print(f"Using default model: {model}")
+    
     # Run the evaluation
     result = asyncio.run(eval(
         test_snapshot(),
-        model="openai/gpt-4o-mini",  # Use a simple model for testing
+        model=model,
     ))
     
     # Report results
