@@ -522,11 +522,41 @@ class QemuCommands(abc.ABC):
     ) -> int:
         new_vm_id = await self.find_next_available_vm_id()
 
+        # Check if we should clone from a snapshot
+        snapshot_name = None
+        if preserve_tags:  # This indicates it's a template VM
+            try:
+                # Create an AgentCommands instance to check for snapshots
+                agent_commands = AgentCommands(self.async_proxmox, self.node)
+                
+                # Check if the "post-cloudinit" snapshot exists
+                if await agent_commands.snapshot_exists(vm_id_to_clone, "post-cloudinit"):
+                    snapshot_name = "post-cloudinit"
+                    self.logger.info(
+                        f"Found 'post-cloudinit' snapshot for VM {vm_id_to_clone}, "
+                        f"will clone from snapshot instead of current state"
+                    )
+            except Exception as e:
+                # If we can't check for snapshots, just clone normally
+                self.logger.debug(
+                    f"Could not check for snapshots on VM {vm_id_to_clone}: {e}"
+                )
+
         async def create_clone() -> None:
+            clone_params = {
+                "newid": new_vm_id,
+                "full": 0,
+                "name": vm_config.name,
+            }
+            
+            # Add snapshot parameter if a snapshot was found
+            if snapshot_name:
+                clone_params["snapname"] = snapshot_name
+            
             await self.async_proxmox.request(
                 "POST",
                 f"/nodes/{self.node}/qemu/{vm_id_to_clone}/clone",
-                json={"newid": new_vm_id, "full": 0, "name": vm_config.name},
+                json=clone_params,
             )
             await self.register_created_vm(new_vm_id)
 
