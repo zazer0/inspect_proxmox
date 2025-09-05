@@ -425,6 +425,66 @@ runcmd:
 
             await wait_for_cloud_init()
 
+            # Create post-cloudinit snapshot
+            snapshot_name = "post-cloudinit"
+            
+            # Check if snapshot already exists
+            with trace_action(
+                self.logger, 
+                self.TRACE_NAME, 
+                f"checking if snapshot '{snapshot_name}' exists for vm_id={next_available_vm_id}"
+            ):
+                snapshot_exists = await agent_commands.snapshot_exists(
+                    vm_id=next_available_vm_id,
+                    snapshot_name=snapshot_name
+                )
+            
+            if not snapshot_exists:
+                with trace_action(
+                    self.logger,
+                    self.TRACE_NAME,
+                    f"creating snapshot '{snapshot_name}' for vm_id={next_available_vm_id}"
+                ):
+                    # Create the snapshot and get the task ID
+                    snapshot_result = await agent_commands.create_snapshot(
+                        vm_id=next_available_vm_id,
+                        snapshot_name=snapshot_name
+                    )
+                    
+                    # If a task ID is returned, wait for it to complete
+                    if snapshot_result and isinstance(snapshot_result, str):
+                        # Snapshot creation returns a task ID (UPID string)
+                        @tenacity.retry(
+                            wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
+                            stop=tenacity.stop_after_delay(VM_TIMEOUT),
+                            retry=tenacity.retry_if_result(lambda x: x is False),
+                        )
+                        async def wait_for_snapshot_task() -> bool:
+                            task_status = await self.async_proxmox.request(
+                                "GET",
+                                f"/nodes/{self.node}/tasks/{snapshot_result}/status"
+                            )
+                            return task_status.get("status") == "stopped"
+                        
+                        await wait_for_snapshot_task()
+                        
+                        # Verify the snapshot was created successfully
+                        @tenacity.retry(
+                            wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
+                            stop=tenacity.stop_after_delay(30),  # 30 second timeout for verification
+                            retry=tenacity.retry_if_result(lambda x: x is False),
+                        )
+                        async def verify_snapshot_exists() -> bool:
+                            return await agent_commands.snapshot_exists(
+                                vm_id=next_available_vm_id,
+                                snapshot_name=snapshot_name
+                            )
+                        
+                        await verify_snapshot_exists()
+                        self.logger.info(f"Successfully created snapshot '{snapshot_name}' for vm_id={next_available_vm_id}")
+            else:
+                self.logger.info(f"Snapshot '{snapshot_name}' already exists for vm_id={next_available_vm_id}, skipping creation")
+
             await self.async_proxmox.request(
                 "POST",
                 f"/nodes/{self.node}/qemu/{next_available_vm_id}/status/shutdown",

@@ -99,10 +99,10 @@ class AgentCommands:
             self.node, vm_id, filepath, max_size, max_size_str
         )
 
-    async def create_snapshot(self, vm_id: int, snapshot_name: str) -> None:
+    async def create_snapshot(self, vm_id: int, snapshot_name: str):
         path = f"/nodes/{self.node}/qemu/{vm_id}/snapshot"
         data: ProxmoxJsonDataType = {"snapname": snapshot_name, "vmstate": 1}
-        await self.async_proxmox.request("POST", path, json=data)
+        return await self.async_proxmox.request("POST", path, json=data)
 
     async def list_snapshots(self, vm_id: int):
         """List all snapshots for a VM."""
