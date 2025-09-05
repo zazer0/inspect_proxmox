@@ -104,6 +104,27 @@ class AgentCommands:
         data: ProxmoxJsonDataType = {"snapname": snapshot_name, "vmstate": 1}
         await self.async_proxmox.request("POST", path, json=data)
 
+    async def list_snapshots(self, vm_id: int):
+        """List all snapshots for a VM."""
+        path = f"/nodes/{self.node}/qemu/{vm_id}/snapshot"
+        return await self.async_proxmox.request("GET", path)
+
+    async def snapshot_exists(self, vm_id: int, snapshot_name: str) -> bool:
+        """Check if a snapshot with the given name exists for a VM."""
+        try:
+            snapshots_result = await self.list_snapshots(vm_id)
+            if not snapshots_result or "data" not in snapshots_result:
+                return False
+            
+            snapshots = snapshots_result.get("data", [])
+            return any(
+                snapshot.get("name") == snapshot_name 
+                for snapshot in snapshots
+            )
+        except Exception:
+            # Return False on any error (e.g., VM doesn't exist, API error)
+            return False
+
     async def rollback_to_snapshot(self, vm_id: int, snapshot_name: str) -> None:
         path = f"/nodes/{self.node}/qemu/{vm_id}/snapshot/{snapshot_name}/rollback"
         await self.async_proxmox.request("POST", path)
