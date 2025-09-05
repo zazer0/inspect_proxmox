@@ -471,7 +471,7 @@ runcmd:
                         # Verify the snapshot was created successfully
                         @tenacity.retry(
                             wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-                            stop=tenacity.stop_after_delay(30),  # 30 second timeout for verification
+                            stop=tenacity.stop_after_delay(120),  # 120 second timeout for verification
                             retry=tenacity.retry_if_result(lambda x: x is False),
                         )
                         async def verify_snapshot_exists() -> bool:
