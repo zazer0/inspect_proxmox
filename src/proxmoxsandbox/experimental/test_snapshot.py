@@ -70,7 +70,6 @@ If all checks pass successfully, respond with exactly: "SNAPSHOT_TEST_SUCCESS"
 
 
 if __name__ == "__main__":
-    import asyncio
     from inspect_ai import eval
     from inspect_ai.model import get_model
     
@@ -103,17 +102,17 @@ if __name__ == "__main__":
         print(f"Using default model: {model}")
     
     # Run the evaluation
-    result = asyncio.run(eval(
+    result = eval(
         test_snapshot(),
         model=model,
-    ))
+    )
     
     # Report results
     print("\n" + "=" * 60)
     print("TEST RESULTS")
     print("=" * 60)
-    if result.results and result.results[0].score:
-        print(f"✓ Test passed! Score: {result.results[0].score}")
+    if result[0].results and result[0].results[0].score:
+        print(f"✓ Test passed! Score: {result[0].results[0].score}")
         print("\nCheck the logs above to verify snapshot behavior:")
         print("  - First run should show snapshot creation")
         print("  - Subsequent runs should show snapshot reuse")
