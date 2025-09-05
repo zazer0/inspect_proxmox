@@ -90,7 +90,7 @@ class QemuCommands(abc.ABC):
                     await qemu_agent_reachable()
                     return  # Success, exit early
                 except Exception as e:
-                    self.logger.warning(
+                    self.logger.debug(
                         f"Initial QEMU agent ping failed for VM {vm_id}: {e}. Attempting recovery..."
                     )
 
@@ -112,7 +112,7 @@ class QemuCommands(abc.ABC):
                         stop=tenacity.stop_after_delay(5),
                     ).async_call(lambda: None)
                 except Exception as restart_error:
-                    self.logger.warning(
+                    self.logger.debug(
                         f"Could not restart QEMU agent service in VM {vm_id}: {restart_error}"
                     )
 
@@ -132,7 +132,7 @@ class QemuCommands(abc.ABC):
                     await qemu_agent_reachable_retry()
                 except Exception as e:
                     # Log warning but continue - don't fail the entire operation
-                    self.logger.warning(
+                    self.logger.debug(
                         f"QEMU agent still not responding for VM {vm_id} after recovery attempt: {e}. "
                         f"Proceeding without agent functionality. This may limit some operations."
                     )
