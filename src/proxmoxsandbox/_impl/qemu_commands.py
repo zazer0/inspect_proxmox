@@ -21,6 +21,7 @@ from proxmoxsandbox._impl.storage_commands import StorageCommands
 from proxmoxsandbox._impl.task_wrapper import TaskWrapper
 from proxmoxsandbox.schema import VmConfig
 
+TIMEOUT_SECONDS=180
 
 class QemuCommands(abc.ABC):
     logger = getLogger(__name__)
@@ -57,7 +58,7 @@ class QemuCommands(abc.ABC):
     ) -> None:
         @tenacity.retry(
             wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-            stop=tenacity.stop_after_delay(120),  # Reduced from 1200 to 120 seconds
+            stop=tenacity.stop_after_delay(TIMEOUT_SECONDS),  # Reduced from 1200 to 400 seconds (~6min)
         )
         async def is_in_status() -> None:
             vm_status = await self.async_proxmox.request(
@@ -118,7 +119,8 @@ class QemuCommands(abc.ABC):
             # Second attempt: Try ping again with reduced timeout
             @tenacity.retry(
                 wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-                stop=tenacity.stop_after_delay(600),  # XXX: here, we try for 10 mins!! (cloudinit takes 6min to run!)
+                stop=tenacity.stop_after_delay(TIMEOUT_SECONDS),  # XXX: here, we try for 3 mins!! (cloudinit=160sec on extreme-bal!)
+                # for posterity: cloudInit=364sec on pd-ssd!
             )
             async def qemu_agent_reachable_retry() -> None:
                 await self.ping_qemu_agent(vm_id)
@@ -144,7 +146,7 @@ class QemuCommands(abc.ABC):
 
         @tenacity.retry(
             wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-            stop=tenacity.stop_after_delay(180),
+            stop=tenacity.stop_after_delay(TIMEOUT_SECONDS),
         )
         async def is_not_running() -> None:
             vm_status = await self.async_proxmox.request(
@@ -163,7 +165,7 @@ class QemuCommands(abc.ABC):
 
         @tenacity.retry(
             wait=tenacity.wait_exponential(min=0.1, exp_base=1.3),
-            stop=tenacity.stop_after_delay(180),
+            stop=tenacity.stop_after_delay(TIMEOUT_SECONDS),
         )
         async def vm_deleted() -> None:
             current = await self.async_proxmox.request(
